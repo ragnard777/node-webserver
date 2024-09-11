@@ -2,4 +2,3 @@ node_modules/
 keys/
 pruebas/
 .env
-dist/
