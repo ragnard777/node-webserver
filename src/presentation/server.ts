@@ -39,7 +39,7 @@ export class Server {
       res.sendFile(indexPath);
     });
 
-    this.app.listen(this.port || 3000, "0.0.0.0", () => {
+    this.app.listen(this.port, () => {
       console.log(`Server running on port ${this.port}`);
     });
   }
