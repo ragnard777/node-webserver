@@ -1,37 +1,19 @@
-//No va a tener metodos estaticos por que vamos a querer hacer el DI, o dependenci injection
-//No se tienen metodos estaticos cuando usamos dependece injection ??
-
 import { Request, Response } from "express";
-
-//mock en memoria.
-const todos = [
-  {
-    id: 1,
-    text: "buy milk",
-    createdAt: new Date(),
-  },
-  {
-    id: 2,
-    text: "buy bread",
-    createdAt: null,
-  },
-  {
-    id: 3,
-    text: "buy butter",
-    createdAt: new Date(),
-  },
-];
+import { prisma } from "../../data/postgres";
+import { CreateTodoDto } from "../../domain/dtos";
+import { UpdateTodoDto } from "../../domain/dtos/todos/update-todo.dto";
 
 export class TodosController {
   //DI
   constructor() {}
 
-  public getTodos = (req: Request, resp: Response) => {
+  public getTodos = async (req: Request, resp: Response) => {
     console.log("Estoy en el getTodos");
-    return resp.json(todos);
+    const newTodos = await prisma.todo.findMany();
+    return resp.json(newTodos);
   };
 
-  public getTodoById = (req: Request, resp: Response) => {
+  public getTodoById = async (req: Request, resp: Response) => {
     console.log("Estoy en el getTodoById");
 
     const id = +req.params.id;
@@ -39,74 +21,92 @@ export class TodosController {
 
     if (isNaN(id))
       resp.status(400).json({ error: `ID argument is not a number ` });
-    const todo = todos.find((todo) => todo.id === id);
+    //const todo = todos.find((todo) => todo.id === id);
+    const newtodos = await prisma.todo.findUnique({ where: { id: id } });
+    console.log("Respuesta desde la base de datos", newtodos);
 
-    todo
-      ? resp.json(todo)
+    newtodos
+      ? resp.json(newtodos)
       : resp.status(404).json({ error: `TODO with id ${id} not found` });
   };
 
-  public createTodo = (req: Request, resp: Response) => {
-    //const body = req.body;
-    const { text, id } = req.body;
-    if (!text) {
-      return resp.status(400).json({ error: "Text property es requerida" });
-    }
+  public createTodo = async (req: Request, resp: Response) => {
+    const [error, createTodoDto] = CreateTodoDto.create(req.body);
+    if (error) return resp.status(400).json({ error });
 
-    //Esto puede ocacionar problemas por que puede que en un tiempo determinado dos personas al mismo tiempo graben
-    //y se guarden dos cosas con el mismo id.
-    const newTodo = {
-      id: id,
-      text: text,
-      createdAt: null,
-    };
+    const todo = await prisma.todo.create({
+      data: createTodoDto!,
+    });
 
-    todos.push(newTodo);
-    resp.json(newTodo);
+    resp.json(todo);
   };
 
-  public updateTodo = (req: Request, resp: Response) => {
+  public updateTodo = async (req: Request, resp: Response) => {
     const id = +req.params.id;
-    if (isNaN(id)) {
+    /*   if (isNaN(id)) {
       return resp.status(400).json({ error: `ID argument is not a number ` });
-    }
-    const todo = todos.find((todo) => todo.id === id);
-    console.log("variable todo del id", todo);
+    } */
+    //const todo = todos.find((todo) => todo.id === id);
+    const [error, updateTodoDto] = UpdateTodoDto.create({ ...req.body, id });
 
-    if (!todo) {
+    if (error) return resp.status(400).json({ error });
+
+    const idExist = await prisma.todo.findUnique({ where: { id: id } });
+    console.log("variable todo del id", idExist);
+
+    if (!idExist) {
       return resp
         .status(400)
         .json({ error: `Todo with id ${id} is not found` });
     }
 
-    const { text } = req.body;
-    console.log("Propiedad texto en el update ", text);
+    //const { text } = req.body;
 
-    if (!text) {
+    //console.log("Propiedad texto en el update ", text);
+
+    /* if (!text) {
       return resp.status(400).json({ error: "Text property is required" });
-    }
+    } */
     //Ojo todo esta pasando por referencia.
-    todo.text = text;
+    //todo.text = text;
+    const updateTodo = await prisma.todo.update({
+      where: {
+        id: id,
+      },
+      /*       data: {
+        text: text,
+      }, */
+      data: updateTodoDto!.values,
+    });
 
-    resp.json(todo);
+    console.log("Lo que devuelve la funcion update de prisma ", updateTodo);
+
+    resp.json(updateTodo);
   };
 
-  public deleteTodoByID = (req: Request, resp: Response) => {
+  public deleteTodoByID = async (req: Request, resp: Response) => {
     const id = +req.params.id;
     if (isNaN(id)) {
       return resp.status(400).json({ error: "Error el id no es valido" });
     }
-
-    const idExist = todos.find((todo) => todo.id === id);
+    const idExist = await prisma.todo.findUnique({ where: { id: id } });
     if (!idExist) {
       return resp.status(400).json({ error: "No existe el id" });
     }
-    console.log("El id ingresado ", id);
-    console.log("El array de todos ", todos);
-    const newTodo = todos.filter((todo) => todo.id !== id);
+    //const idExist = todos.find((todo) => todo.id === id);
+    const todosSindId = await prisma.todo.delete({
+      where: {
+        id: id,
+      },
+    });
+    console.log("Lo que regresa la funcion de delete ", todosSindId);
 
-    console.log(newTodo);
+    //const newTodo = todos.filter((todo) => todo.id !== id);
 
-    resp.status(200).json(newTodo);
+    const newTodos = await prisma.todo.findMany();
+
+    console.log(newTodos);
+
+    resp.status(200).json(newTodos);
   };
 }
